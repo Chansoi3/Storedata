@@ -42,7 +42,7 @@
         <h1 id="reportDateDisplay" class="text-xl md:text-2xl font-bold text-gray-800">กำลังโหลดข้อมูลวันที่...</h1>
         <p id="branchInfo" class="text-blue-600 font-medium mt-1 text-lg">กำลังโหลดข้อมูลสาขา...</p>
       </div>
-      </div>
+    </div>
 
     <div id="loading" class="flex justify-center my-12 hidden">
       <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12"></div>
@@ -84,6 +84,9 @@
                 <th class="p-3 text-sm font-semibold text-center border-l border-gray-600 cursor-pointer transition" onclick="sortData('psValue')">
                   ค่า PS <span id="sortIcon-psValue" class="text-gray-400 text-xs">↕️</span>
                 </th>
+                <th class="p-3 text-sm font-semibold text-center border-l border-gray-600 cursor-pointer transition" onclick="sortData('orderPoint')">
+                  ORDER_POINT <span id="sortIcon-orderPoint" class="text-gray-400 text-xs">↕️</span>
+                </th>
                 <th class="p-3 text-sm font-semibold text-center border-l border-gray-600 cursor-pointer transition" onclick="sortData('stock')">
                   สต็อค <span id="sortIcon-stock" class="text-gray-400 text-xs">↕️</span>
                 </th>
@@ -122,8 +125,6 @@
           const bInfo = result.branch;
           
           document.getElementById('reportDateDisplay').innerText = result.reportDate || "ข้อมูลวันที่ (ไม่ระบุ)";
-          
-          // ใส่ tag span ที่สามารถคลิกได้เข้าไปที่ รหัสสาขา เพื่อเปิด Admin Mode
           document.getElementById('branchInfo').innerHTML = `<span class="cursor-pointer hover:underline hover:text-red-600" title="คลิกเพื่อจัดการข้อมูล" onclick="toggleAdmin()">รหัสสาขา: ${bInfo.code || '-'}</span> | ชื่อสาขา: ${bInfo.name || '-'}`;
           
           document.getElementById('mainContent').classList.remove('hidden');
@@ -178,7 +179,8 @@
     }
 
     function updateSortIcons() {
-      const columns = ['barcode', 'name', 'groupName', 'status', 'psValue', 'stock', 'reason'];
+      // เพิ่ม orderPoint ในอาร์เรย์สำหรับอัปเดตไอคอน
+      const columns = ['barcode', 'name', 'groupName', 'status', 'psValue', 'orderPoint', 'stock', 'reason'];
       columns.forEach(col => {
         const icon = document.getElementById(`sortIcon-${col}`);
         if (icon) {
@@ -234,7 +236,6 @@
         `;
       } 
       else if (currentTab === 'zeroStock') {
-        // เปลี่ยนจาก reasonBreakdown เป็น deliveryBreakdown (DC/FDC)
         const deliveryHtml = Object.entries(data.deliveryBreakdown).map(([dlv, c]) => 
           `<div class="flex justify-between border-b border-gray-200 py-1"><span>${dlv}</span> <span class="font-bold text-red-600">${c}</span></div>`
         ).join('');
@@ -285,7 +286,8 @@
           let valA = a[sortConfig.key];
           let valB = b[sortConfig.key];
           
-          if (sortConfig.key === 'stock' || sortConfig.key === 'psValue') {
+          // ให้ orderPoint เรียงลำดับแบบตัวเลขเหมือนกับ stock และ psValue
+          if (sortConfig.key === 'stock' || sortConfig.key === 'psValue' || sortConfig.key === 'orderPoint') {
             valA = parseFloat(valA) || 0;
             valB = parseFloat(valB) || 0;
           } else {
@@ -302,7 +304,7 @@
       const tbody = document.getElementById('tableBody');
       
       if (dataItems.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-gray-400 font-medium">ไม่มีรายการในหมวดหมู่นี้</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-gray-400 font-medium">ไม่มีรายการในหมวดหมู่นี้</td></tr>`;
         return;
       }
 
@@ -313,6 +315,7 @@
           <td class="p-3 text-gray-600">${item.groupName}</td>
           <td class="p-3 text-center font-bold text-gray-700">${item.status}</td>
           <td class="p-3 text-center border-l hl-ps">${item.psValue}</td>
+          <td class="p-3 text-center border-l text-blue-700 font-bold bg-blue-50">${item.orderPoint}</td>
           <td class="p-3 text-center border-l hl-stock">${item.stock}</td>
           <td class="p-3 text-xs text-red-600 max-w-xs truncate border-l" title="${item.reason}">${item.reason}</td>
         </tr>
