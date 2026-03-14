@@ -3,22 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ระบบตรวจสอบขอบข้อมูล StoreData</title>
+  <title>ระบบตรวจสอบข้อมูล StoreData</title>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    .tab-active { border-bottom: 3px solid #10B981; color: #10B981; font-weight: bold; }
+    .tab-active { border-bottom: 3px solid #10B981; color: #10B981; font-weight: bold; background-color: #f9fafb; }
     .loader { border-top-color: #10B981; animation: spinner 1.5s linear infinite; }
     @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .hl-stock { background-color: #fee2e2; color: #b91c1c; font-weight: 700; } /* แดงอ่อน ไฮไลต์สต็อค */
+    .hl-ps { background-color: #fef3c7; color: #d97706; font-weight: 700; } /* เหลืองอ่อน ไฮไลต์ PS */
   </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-100 text-gray-800">
 
-  <div class="max-w-5xl mx-auto p-4 md:p-6">
-    <div class="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm mb-6">
-      <h1 class="text-xl md:text-2xl font-bold text-gray-700">StoreData Portal</h1>
-      <button onclick="toggleAdmin()" class="bg-gray-200 hover:bg-gray-300 text-sm px-4 py-2 rounded transition">
-        Admin Mode
+  <div class="max-w-6xl mx-auto p-4 md:p-6">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-lg shadow-sm mb-4 border-l-4 border-blue-500">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-800">StoreData Portal</h1>
+        <p id="branchInfo" class="text-blue-600 font-medium mt-1 text-lg">กำลังโหลดข้อมูลสาขา...</p>
+      </div>
+      <button onclick="toggleAdmin()" class="mt-4 md:mt-0 bg-gray-200 hover:bg-gray-300 text-sm px-4 py-2 rounded transition font-bold text-gray-700">
+        ⚙️ Admin Mode
       </button>
     </div>
 
@@ -37,39 +42,37 @@
       <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12"></div>
     </div>
 
-    <div id="mainContent" class="hidden bg-white rounded-lg shadow-sm overflow-hidden">
-      <div class="flex border-b bg-gray-50">
-        <button onclick="switchTab('top')" id="tabTop" class="flex-1 py-4 text-center tab-active transition hover:bg-gray-100">
-          รายการ TOP (100/200)
+    <div id="mainContent" class="hidden bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
+      
+      <div class="flex border-b bg-gray-50 flex-wrap">
+        <button onclick="switchTab('top100')" id="tabTop100" class="flex-1 py-3 px-2 text-center tab-active transition hover:bg-gray-100 text-sm md:text-base">
+          ⭐ TOP 100 สาขา
         </button>
-        <button onclick="switchTab('zero')" id="tabZero" class="flex-1 py-4 text-center text-gray-500 transition hover:bg-gray-100">
-          สินค้าสต็อค 0
+        <button onclick="switchTab('zeroStock')" id="tabZeroStock" class="flex-1 py-3 px-2 text-center text-gray-500 transition hover:bg-gray-100 text-sm md:text-base border-l">
+          📦 สินค้าสต็อค 0
+        </button>
+        <button onclick="switchTab('negativeStock')" id="tabNegativeStock" class="flex-1 py-3 px-2 text-center text-gray-500 transition hover:bg-gray-100 text-sm md:text-base border-l">
+          ⚠️ สต็อคติดลบ
         </button>
       </div>
 
-      <div class="p-4 md:p-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div class="bg-green-50 rounded-lg p-4 border border-green-100">
-            <h4 class="text-sm text-green-600 font-medium">จำนวนรายการทั้งหมด</h4>
-            <p id="totalCount" class="text-3xl font-bold text-green-700 mt-2">0</p>
-          </div>
-          <div class="md:col-span-2 bg-blue-50 rounded-lg p-4 border border-blue-100">
-            <h4 class="text-sm text-blue-600 font-medium mb-2">สรุปจำนวนตามแผนก</h4>
-            <div id="deptSummary" class="flex flex-wrap gap-2 text-sm"></div>
-          </div>
-        </div>
+      <div class="p-4 md:p-6 bg-white">
+        <div id="summaryDashboard" class="mb-6"></div>
 
-        <div class="overflow-x-auto border rounded-lg">
-          <table class="min-w-full text-left bg-white">
-            <thead class="bg-gray-100 border-b">
+        <div class="overflow-x-auto border rounded-lg shadow-sm">
+          <table class="min-w-full text-left bg-white whitespace-nowrap">
+            <thead class="bg-gray-800 text-white">
               <tr>
-                <th class="p-3 text-sm font-semibold text-gray-600">รหัสสินค้า (Barcode)</th>
-                <th class="p-3 text-sm font-semibold text-gray-600 w-1/2">ชื่อสินค้า</th>
-                <th class="p-3 text-sm font-semibold text-gray-600">แผนก</th>
-                <th class="p-3 text-sm font-semibold text-gray-600 text-center">สต็อค</th>
+                <th class="p-3 text-sm font-semibold">บาร์โค้ด</th>
+                <th class="p-3 text-sm font-semibold w-1/3">ชื่อสินค้า</th>
+                <th class="p-3 text-sm font-semibold">แผนก (GROUP)</th>
+                <th class="p-3 text-sm font-semibold text-center">Status</th>
+                <th class="p-3 text-sm font-semibold">สาเหตุ</th>
+                <th class="p-3 text-sm font-semibold text-center border-l border-gray-600">ค่า PS</th>
+                <th class="p-3 text-sm font-semibold text-center border-l border-gray-600">สต็อค</th>
               </tr>
             </thead>
-            <tbody id="tableBody" class="divide-y text-sm"></tbody>
+            <tbody id="tableBody" class="divide-y text-sm text-gray-700"></tbody>
           </table>
         </div>
       </div>
@@ -77,58 +80,155 @@
   </div>
 
   <script>
-    // --- เปลี่ยน URL นี้เป็น Web App URL อันใหม่ที่เพิ่ง Deploy ---
     const API_URL = 'https://script.google.com/macros/s/AKfycbw8kJBY5wA9vZyquYcrOse0KhJTDJOghHrJCYDbJ3wNzI1UlxnejImRNZMe-8Uq1JnZ/exec'; 
-    let globalData = null;
+    let apiResponse = null;
+    let currentTab = 'top100';
 
     window.onload = () => fetchStoreData();
 
     async function fetchStoreData() {
       document.getElementById('loading').classList.remove('hidden');
       document.getElementById('mainContent').classList.add('hidden');
+      document.getElementById('branchInfo').innerText = "กำลังโหลดข้อมูล...";
       
       try {
-        // เพิ่ม redirect follow เพื่อแก้ปัญหาเชื่อมต่อ API 
         const response = await fetch(`${API_URL}?action=getData`, { redirect: 'follow' });
         const result = await response.json();
         
         if (result.status === 'success') {
-          globalData = result.data;
-          switchTab('top'); 
+          apiResponse = result;
+          
+          // แสดงรหัสและชื่อสาขา
+          const bInfo = result.branch;
+          document.getElementById('branchInfo').innerText = `รหัสสาขา: ${bInfo.code || '-'} | ชื่อสาขา: ${bInfo.name || '-'}`;
+          
           document.getElementById('mainContent').classList.remove('hidden');
+          switchTab('top100'); 
         } else {
           alert('เกิดข้อผิดพลาด: ' + result.message);
         }
       } catch (error) {
         alert('ไม่สามารถเชื่อมต่อ API ได้ (กรุณาเช็ค URL หรืออัปเดต Deployment)');
+        document.getElementById('branchInfo').innerText = "เชื่อมต่อล้มเหลว";
       } finally {
         document.getElementById('loading').classList.add('hidden');
       }
     }
 
-    function switchTab(tabType) {
-      if (!globalData) return;
+    function switchTab(tabName) {
+      if (!apiResponse) return;
+      currentTab = tabName;
 
-      document.getElementById('tabTop').className = tabType === 'top' ? 'flex-1 py-4 text-center tab-active transition hover:bg-gray-100' : 'flex-1 py-4 text-center text-gray-500 transition hover:bg-gray-100';
-      document.getElementById('tabZero').className = tabType === 'zero' ? 'flex-1 py-4 text-center tab-active transition hover:bg-gray-100' : 'flex-1 py-4 text-center text-gray-500 transition hover:bg-gray-100';
+      // Update Tab Styles
+      ['top100', 'zeroStock', 'negativeStock'].forEach(t => {
+        const el = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
+        if (t === tabName) {
+          el.className = 'flex-1 py-3 px-2 text-center tab-active transition hover:bg-gray-100 text-sm md:text-base';
+        } else {
+          el.className = 'flex-1 py-3 px-2 text-center text-gray-500 transition hover:bg-gray-100 text-sm md:text-base border-l';
+        }
+      });
 
-      const data = tabType === 'top' ? globalData.topItems : globalData.zeroStock;
+      renderDashboard();
+      renderTable();
+    }
 
-      document.getElementById('totalCount').innerText = data.total.toLocaleString();
-      
-      let deptHtml = '';
-      for (const [dept, count] of Object.entries(data.summary)) {
-        deptHtml += `<span class="bg-white px-2 py-1 rounded shadow-sm border text-gray-700">${dept}: <span class="font-bold text-blue-600">${count}</span></span>`;
+    function renderDashboard() {
+      const data = apiResponse.data[currentTab];
+      const dashArea = document.getElementById('summaryDashboard');
+      let html = '';
+
+      // Helper for dept summary badges
+      const getDeptBadges = (summaryObj) => {
+        return Object.entries(summaryObj).map(([dept, count]) => 
+          `<span class="bg-white px-2 py-1 rounded shadow-sm border text-gray-700 whitespace-nowrap">${dept}: <span class="font-bold text-blue-600">${count}</span></span>`
+        ).join('') || '<span class="text-gray-500">ไม่มีข้อมูล</span>';
+      };
+
+      if (currentTab === 'top100') {
+        html = `
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-indigo-50 rounded-lg p-4 border border-indigo-200 shadow-sm text-center">
+              <h4 class="text-sm text-indigo-700 font-bold">รายการ TOP100 ทั้งหมด</h4>
+              <p class="text-3xl font-black text-indigo-800 mt-2">${data.total}</p>
+            </div>
+            <div class="bg-red-50 rounded-lg p-4 border border-red-200 shadow-sm text-center">
+              <h4 class="text-sm text-red-700 font-bold">สินค้า OOS (สต็อค 0)</h4>
+              <p class="text-3xl font-black text-red-600 mt-2">${data.oosCount}</p>
+            </div>
+            <div class="md:col-span-2 bg-blue-50 rounded-lg p-4 border border-blue-200 shadow-sm">
+              <h4 class="text-sm text-blue-800 font-bold mb-2">แยกตามแผนก (GROUP_NAME)</h4>
+              <div class="flex flex-wrap gap-2 text-xs">${getDeptBadges(data.summary)}</div>
+            </div>
+          </div>
+        `;
+      } 
+      else if (currentTab === 'zeroStock') {
+        // Status Breakdown
+        const statusHtml = Object.entries(data.statusBreakdown).map(([st, c]) => 
+          `<div class="flex justify-between border-b border-gray-200 py-1"><span>Status ${st}</span> <span class="font-bold">${c}</span></div>`
+        ).join('');
+        // Reason Breakdown
+        const reasonHtml = Object.entries(data.reasonBreakdown).map(([rs, c]) => 
+          `<div class="flex justify-between border-b border-gray-200 py-1"><span>${rs}</span> <span class="font-bold text-red-600">${c}</span></div>`
+        ).join('');
+
+        html = `
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-gray-50 rounded-lg p-4 border shadow-sm text-center flex flex-col justify-center">
+              <h4 class="text-sm text-gray-700 font-bold">สต็อค 0 ทั้งหมด</h4>
+              <p class="text-4xl font-black text-gray-800 mt-2">${data.total}</p>
+            </div>
+            <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200 shadow-sm text-xs">
+              <h4 class="font-bold text-yellow-800 mb-2 border-b border-yellow-200 pb-1">แยกตาม Status</h4>
+              ${statusHtml || '-'}
+            </div>
+            <div class="bg-red-50 rounded-lg p-3 border border-red-200 shadow-sm text-xs overflow-y-auto max-h-32">
+              <h4 class="font-bold text-red-800 mb-2 border-b border-red-200 pb-1">แยกตามสาเหตุ</h4>
+              ${reasonHtml || '-'}
+            </div>
+            <div class="bg-blue-50 rounded-lg p-3 border border-blue-200 shadow-sm overflow-y-auto max-h-32">
+              <h4 class="text-xs text-blue-800 font-bold mb-2 border-b border-blue-200 pb-1">แยกตามแผนก</h4>
+              <div class="flex flex-wrap gap-1 text-[10px]">${getDeptBadges(data.summary)}</div>
+            </div>
+          </div>
+        `;
+      } 
+      else if (currentTab === 'negativeStock') {
+        html = `
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-red-100 rounded-lg p-4 border border-red-300 shadow-sm text-center">
+              <h4 class="text-sm text-red-800 font-bold">สินค้าสต็อคติดลบทั้งหมด</h4>
+              <p class="text-3xl font-black text-red-700 mt-2">${data.total} <span class="text-base font-normal">รายการ</span></p>
+            </div>
+            <div class="md:col-span-2 bg-blue-50 rounded-lg p-4 border border-blue-200 shadow-sm">
+              <h4 class="text-sm text-blue-800 font-bold mb-2">แยกตามแผนก (GROUP_NAME)</h4>
+              <div class="flex flex-wrap gap-2 text-xs">${getDeptBadges(data.summary)}</div>
+            </div>
+          </div>
+        `;
       }
-      document.getElementById('deptSummary').innerHTML = deptHtml || '<span class="text-gray-500">ไม่มีข้อมูลแผนก</span>';
+      dashArea.innerHTML = html;
+    }
 
+    function renderTable() {
+      const dataItems = apiResponse.data[currentTab].details;
       const tbody = document.getElementById('tableBody');
-      tbody.innerHTML = data.details.map(item => `
-        <tr class="hover:bg-gray-50 transition">
-          <td class="p-3 font-mono text-gray-600">${item.barcode}</td>
-          <td class="p-3 font-medium text-gray-800">${item.name}</td>
-          <td class="p-3 text-gray-500 text-xs">${item.dept}</td>
-          <td class="p-3 text-center font-bold ${item.stock <= 0 ? 'text-red-500' : 'text-green-600'}">${item.stock}</td>
+      
+      if (dataItems.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-gray-400 font-medium">ไม่มีรายการในหมวดหมู่นี้</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = dataItems.map(item => `
+        <tr class="hover:bg-gray-50 transition border-b">
+          <td class="p-3 font-mono text-gray-500 text-xs">${item.barcode}</td>
+          <td class="p-3 font-medium text-gray-900 truncate max-w-xs" title="${item.name}">${item.name}</td>
+          <td class="p-3 text-gray-600">${item.groupName}</td>
+          <td class="p-3 text-center font-bold text-gray-700">${item.status}</td>
+          <td class="p-3 text-xs text-red-600 max-w-xs truncate" title="${item.reason}">${item.reason}</td>
+          <td class="p-3 text-center border-l hl-ps">${item.psValue}</td>
+          <td class="p-3 text-center border-l hl-stock">${item.stock}</td>
         </tr>
       `).join('');
     }
@@ -137,7 +237,6 @@
       document.getElementById('adminPanel').classList.toggle('hidden');
     }
 
-    // ฟังก์ชันอ่านไฟล์ Excel ด้วย SheetJS
     function uploadExcelFile() {
       const fileInput = document.getElementById('excelFileInput');
       const statusText = document.getElementById('uploadStatus');
@@ -147,8 +246,7 @@
         return;
       }
 
-      statusText.innerHTML = '<span class="text-blue-500">กำลังอ่านไฟล์ Excel กรุณารอสักครู่...</span>';
-      
+      statusText.innerHTML = '<span class="text-blue-500">⏳ กำลังอ่านไฟล์ Excel กรุณารอสักครู่...</span>';
       const file = fileInput.files[0];
       const reader = new FileReader();
       
@@ -156,22 +254,16 @@
         try {
           const data = new Uint8Array(e.target.result);
           const workbook = XLSX.read(data, {type: 'array'});
-          
-          // ค้นหาชีตที่ชื่อ 'StoreData' หรือใช้ชีตแรกถ้าหาไม่เจอ
           const sheetName = workbook.SheetNames.includes('StoreData') ? 'StoreData' : workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
-          
-          // แปลงเป็น Array เพื่อส่งไปให้ Apps Script เขียนลงชีต
           const jsonDataArray = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
           
-          statusText.innerHTML = '<span class="text-blue-500">กำลังส่งข้อมูลขึ้นระบบ...</span>';
+          statusText.innerHTML = '<span class="text-blue-500">☁️ กำลังส่งข้อมูลขึ้นระบบ (อาจใช้เวลา 10-20 วินาที)...</span>';
           sendDataToAppsScript(jsonDataArray);
-          
         } catch (error) {
           statusText.innerHTML = `<span class="text-red-500">✗ เกิดข้อผิดพลาดในการอ่านไฟล์ Excel</span>`;
         }
       };
-      
       reader.readAsArrayBuffer(file);
     }
 
@@ -182,12 +274,12 @@
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({ action: 'upload', data: dataArray }),
-          redirect: 'follow' // สำคัญมากสำหรับป้องกันการบล็อกจาก CORS
+          redirect: 'follow'
         });
         
         const result = await response.json();
         if (result.status === 'success') {
-          statusText.innerHTML = `<span class="text-green-600 font-bold">✓ ${result.message}</span>`;
+          statusText.innerHTML = `<span class="text-green-600 font-bold">✅ ${result.message}</span>`;
           setTimeout(() => {
             statusText.innerHTML = '';
             document.getElementById('excelFileInput').value = '';
