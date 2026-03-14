@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบตรวจสอบขอบข้อมูล StoreData</title>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     .tab-active { border-bottom: 3px solid #10B981; color: #10B981; font-weight: bold; }
     .loader { border-top-color: #10B981; animation: spinner 1.5s linear infinite; }
@@ -22,10 +23,10 @@
     </div>
 
     <div id="adminPanel" class="hidden bg-white p-6 rounded-lg shadow-sm border-t-4 border-red-500 mb-6">
-      <h3 class="font-bold text-red-600 mb-4 text-lg">อัปโหลดไฟล์ StoreData.csv เพื่อแทนที่ข้อมูล</h3>
+      <h3 class="font-bold text-red-600 mb-4 text-lg">อัปโหลดไฟล์ .xlsx เพื่อแทนที่ข้อมูลชีต StoreData</h3>
       <div class="flex flex-col sm:flex-row gap-4 items-center">
-        <input type="file" id="csvFileInput" accept=".csv" class="border p-2 rounded w-full">
-        <button onclick="uploadFile()" class="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded font-medium w-full sm:w-auto transition">
+        <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="border p-2 rounded w-full">
+        <button onclick="uploadExcelFile()" class="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded font-medium w-full sm:w-auto transition">
           อัปโหลดและแทนที่
         </button>
       </div>
@@ -37,7 +38,6 @@
     </div>
 
     <div id="mainContent" class="hidden bg-white rounded-lg shadow-sm overflow-hidden">
-      
       <div class="flex border-b bg-gray-50">
         <button onclick="switchTab('top')" id="tabTop" class="flex-1 py-4 text-center tab-active transition hover:bg-gray-100">
           รายการ TOP (100/200)
@@ -66,24 +66,21 @@
                 <th class="p-3 text-sm font-semibold text-gray-600">รหัสสินค้า (Barcode)</th>
                 <th class="p-3 text-sm font-semibold text-gray-600 w-1/2">ชื่อสินค้า</th>
                 <th class="p-3 text-sm font-semibold text-gray-600">แผนก</th>
-                <th class="p-3 text-sm font-semibold text-gray-600 text-center">สต็อคคงเหลือ</th>
+                <th class="p-3 text-sm font-semibold text-gray-600 text-center">สต็อค</th>
               </tr>
             </thead>
-            <tbody id="tableBody" class="divide-y text-sm">
-              </tbody>
+            <tbody id="tableBody" class="divide-y text-sm"></tbody>
           </table>
         </div>
       </div>
     </div>
-
   </div>
 
   <script>
-    // --- ตั้งค่า API URL ---
+    // --- เปลี่ยน URL นี้เป็น Web App URL อันใหม่ที่เพิ่ง Deploy ---
     const API_URL = 'https://script.google.com/macros/s/AKfycbw8kJBY5wA9vZyquYcrOse0KhJTDJOghHrJCYDbJ3wNzI1UlxnejImRNZMe-8Uq1JnZ/exec'; 
     let globalData = null;
 
-    // โหลดข้อมูลทันทีเมื่อเปิดหน้าเว็บ
     window.onload = () => fetchStoreData();
 
     async function fetchStoreData() {
@@ -91,18 +88,19 @@
       document.getElementById('mainContent').classList.add('hidden');
       
       try {
-        const response = await fetch(`${API_URL}?action=getData`);
+        // เพิ่ม redirect follow เพื่อแก้ปัญหาเชื่อมต่อ API 
+        const response = await fetch(`${API_URL}?action=getData`, { redirect: 'follow' });
         const result = await response.json();
         
         if (result.status === 'success') {
           globalData = result.data;
-          switchTab('top'); // แสดงแท็บ TOP เป็นค่าเริ่มต้น
+          switchTab('top'); 
           document.getElementById('mainContent').classList.remove('hidden');
         } else {
           alert('เกิดข้อผิดพลาด: ' + result.message);
         }
       } catch (error) {
-        alert('ไม่สามารถเชื่อมต่อ API ได้');
+        alert('ไม่สามารถเชื่อมต่อ API ได้ (กรุณาเช็ค URL หรืออัปเดต Deployment)');
       } finally {
         document.getElementById('loading').classList.add('hidden');
       }
@@ -111,13 +109,11 @@
     function switchTab(tabType) {
       if (!globalData) return;
 
-      // จัดการ Active Tab CSS
       document.getElementById('tabTop').className = tabType === 'top' ? 'flex-1 py-4 text-center tab-active transition hover:bg-gray-100' : 'flex-1 py-4 text-center text-gray-500 transition hover:bg-gray-100';
       document.getElementById('tabZero').className = tabType === 'zero' ? 'flex-1 py-4 text-center tab-active transition hover:bg-gray-100' : 'flex-1 py-4 text-center text-gray-500 transition hover:bg-gray-100';
 
       const data = tabType === 'top' ? globalData.topItems : globalData.zeroStock;
 
-      // 1. อัปเดต Summary (หัวบน)
       document.getElementById('totalCount').innerText = data.total.toLocaleString();
       
       let deptHtml = '';
@@ -126,66 +122,84 @@
       }
       document.getElementById('deptSummary').innerHTML = deptHtml || '<span class="text-gray-500">ไม่มีข้อมูลแผนก</span>';
 
-      // 2. อัปเดต Detail Table
       const tbody = document.getElementById('tableBody');
       tbody.innerHTML = data.details.map(item => `
         <tr class="hover:bg-gray-50 transition">
           <td class="p-3 font-mono text-gray-600">${item.barcode}</td>
           <td class="p-3 font-medium text-gray-800">${item.name}</td>
           <td class="p-3 text-gray-500 text-xs">${item.dept}</td>
-          <td class="p-3 text-center font-bold ${item.stock === 0 ? 'text-red-500' : 'text-green-600'}">${item.stock}</td>
+          <td class="p-3 text-center font-bold ${item.stock <= 0 ? 'text-red-500' : 'text-green-600'}">${item.stock}</td>
         </tr>
       `).join('');
     }
 
     function toggleAdmin() {
-      const panel = document.getElementById('adminPanel');
-      panel.classList.toggle('hidden');
+      document.getElementById('adminPanel').classList.toggle('hidden');
     }
 
-    function uploadFile() {
-      const fileInput = document.getElementById('csvFileInput');
+    // ฟังก์ชันอ่านไฟล์ Excel ด้วย SheetJS
+    function uploadExcelFile() {
+      const fileInput = document.getElementById('excelFileInput');
       const statusText = document.getElementById('uploadStatus');
       
       if (fileInput.files.length === 0) {
-        alert('กรุณาเลือกไฟล์ .csv ก่อนอัปโหลด');
+        alert('กรุณาเลือกไฟล์ .xlsx ก่อนอัปโหลด');
         return;
       }
 
-      statusText.innerHTML = '<span class="text-blue-500">กำลังอัปโหลดและประมวลผล กรุณารอสักครู่...</span>';
+      statusText.innerHTML = '<span class="text-blue-500">กำลังอ่านไฟล์ Excel กรุณารอสักครู่...</span>';
       
       const file = fileInput.files[0];
       const reader = new FileReader();
       
-      reader.onload = async function(e) {
-        const base64Data = e.target.result;
-        
+      reader.onload = function(e) {
         try {
-          // ใช้ Content-Type text/plain ป้องกัน CORS Preflight บนเว็บ Static (GitHub)
-          const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'upload', base64: base64Data })
-          });
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, {type: 'array'});
           
-          const result = await response.json();
-          if (result.status === 'success') {
-            statusText.innerHTML = `<span class="text-green-600 font-bold">✓ ${result.message}</span>`;
-            setTimeout(() => {
-              statusText.innerHTML = '';
-              fileInput.value = '';
-              toggleAdmin();
-              fetchStoreData(); // โหลดข้อมูลใหม่มาแสดงทันที
-            }, 1500);
-          } else {
-            statusText.innerHTML = `<span class="text-red-500">✗ ผิดพลาด: ${result.message}</span>`;
-          }
+          // ค้นหาชีตที่ชื่อ 'StoreData' หรือใช้ชีตแรกถ้าหาไม่เจอ
+          const sheetName = workbook.SheetNames.includes('StoreData') ? 'StoreData' : workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          
+          // แปลงเป็น Array เพื่อส่งไปให้ Apps Script เขียนลงชีต
+          const jsonDataArray = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+          
+          statusText.innerHTML = '<span class="text-blue-500">กำลังส่งข้อมูลขึ้นระบบ...</span>';
+          sendDataToAppsScript(jsonDataArray);
+          
         } catch (error) {
-          statusText.innerHTML = `<span class="text-red-500">✗ เชื่อมต่อ API ล้มเหลว</span>`;
+          statusText.innerHTML = `<span class="text-red-500">✗ เกิดข้อผิดพลาดในการอ่านไฟล์ Excel</span>`;
         }
       };
       
-      reader.readAsDataURL(file);
+      reader.readAsArrayBuffer(file);
+    }
+
+    async function sendDataToAppsScript(dataArray) {
+      const statusText = document.getElementById('uploadStatus');
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'upload', data: dataArray }),
+          redirect: 'follow' // สำคัญมากสำหรับป้องกันการบล็อกจาก CORS
+        });
+        
+        const result = await response.json();
+        if (result.status === 'success') {
+          statusText.innerHTML = `<span class="text-green-600 font-bold">✓ ${result.message}</span>`;
+          setTimeout(() => {
+            statusText.innerHTML = '';
+            document.getElementById('excelFileInput').value = '';
+            toggleAdmin();
+            fetchStoreData();
+          }, 1500);
+        } else {
+          statusText.innerHTML = `<span class="text-red-500">✗ ผิดพลาด: ${result.message}</span>`;
+        }
+      } catch (error) {
+        statusText.innerHTML = `<span class="text-red-500">✗ เชื่อมต่อ API ล้มเหลว กรุณาตรวจสอบลิงก์ Web App</span>`;
+      }
     }
   </script>
 </body>
