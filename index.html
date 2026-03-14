@@ -10,8 +10,8 @@
     .tab-active { border-bottom: 3px solid #10B981; color: #10B981; font-weight: bold; background-color: #f9fafb; }
     .loader { border-top-color: #10B981; animation: spinner 1.5s linear infinite; }
     @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .hl-stock { background-color: #fee2e2; color: #b91c1c; font-weight: 700; } /* แดงอ่อน ไฮไลต์สต็อค */
-    .hl-ps { background-color: #fef3c7; color: #d97706; font-weight: 700; } /* เหลืองอ่อน ไฮไลต์ PS */
+    .hl-stock { background-color: #fee2e2; color: #b91c1c; font-weight: 700; } 
+    .hl-ps { background-color: #fef3c7; color: #d97706; font-weight: 700; } 
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -83,6 +83,7 @@
     const API_URL = 'https://script.google.com/macros/s/AKfycbw8kJBY5wA9vZyquYcrOse0KhJTDJOghHrJCYDbJ3wNzI1UlxnejImRNZMe-8Uq1JnZ/exec'; 
     let apiResponse = null;
     let currentTab = 'top100';
+    let currentDept = 'All'; // ตัวแปรเก็บสถานะแผนกที่เลือก
 
     window.onload = () => fetchStoreData();
 
@@ -98,7 +99,6 @@
         if (result.status === 'success') {
           apiResponse = result;
           
-          // แสดงรหัสและชื่อสาขา
           const bInfo = result.branch;
           document.getElementById('branchInfo').innerText = `รหัสสาขา: ${bInfo.code || '-'} | ชื่อสาขา: ${bInfo.name || '-'}`;
           
@@ -118,8 +118,8 @@
     function switchTab(tabName) {
       if (!apiResponse) return;
       currentTab = tabName;
+      currentDept = 'All'; // รีเซ็ตแผนกเมื่อสลับแท็บหลัก
 
-      // Update Tab Styles
       ['top100', 'zeroStock', 'negativeStock'].forEach(t => {
         const el = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
         if (t === tabName) {
@@ -133,16 +133,37 @@
       renderTable();
     }
 
+    // ฟังก์ชันเลือกแผนก
+    function filterByDept(deptName) {
+      currentDept = deptName;
+      renderDashboard(); // อัปเดต UI ของปุ่ม
+      renderTable();     // อัปเดตตารางให้แสดงเฉพาะแผนก
+    }
+
     function renderDashboard() {
       const data = apiResponse.data[currentTab];
       const dashArea = document.getElementById('summaryDashboard');
       let html = '';
 
-      // Helper for dept summary badges
+      // Helper สร้างปุ่มแผนกที่กดเลือกได้
       const getDeptBadges = (summaryObj) => {
-        return Object.entries(summaryObj).map(([dept, count]) => 
-          `<span class="bg-white px-2 py-1 rounded shadow-sm border text-gray-700 whitespace-nowrap">${dept}: <span class="font-bold text-blue-600">${count}</span></span>`
-        ).join('') || '<span class="text-gray-500">ไม่มีข้อมูล</span>';
+        // ปุ่ม "ทั้งหมด"
+        let badgesHtml = `<button onclick="filterByDept('All')" class="px-3 py-1 rounded shadow-sm border text-sm transition ${currentDept === 'All' ? 'bg-blue-600 text-white font-bold' : 'bg-white text-gray-700 hover:bg-gray-100'}">ทั้งหมด</button>`;
+        
+        // ปุ่มแต่ละแผนก
+        badgesHtml += Object.entries(summaryObj).map(([dept, count]) => {
+          // หนีตัวอักษรพิเศษเพื่อป้องกัน Error ใน onclick (เช่น Single Quote)
+          const safeDept = dept.replace(/'/g, "\\'");
+          const isActive = currentDept === dept;
+          const btnClass = isActive ? 'bg-blue-600 text-white font-bold' : 'bg-white text-gray-700 hover:bg-gray-100';
+          const countClass = isActive ? 'text-blue-200' : 'text-blue-600';
+          
+          return `<button onclick="filterByDept('${safeDept}')" class="px-3 py-1 rounded shadow-sm border text-sm whitespace-nowrap transition ${btnClass}">
+            ${dept}: <span class="font-bold ${countClass}">${count}</span>
+          </button>`;
+        }).join('');
+        
+        return badgesHtml || '<span class="text-gray-500">ไม่มีข้อมูล</span>';
       };
 
       if (currentTab === 'top100') {
@@ -157,18 +178,16 @@
               <p class="text-3xl font-black text-red-600 mt-2">${data.oosCount}</p>
             </div>
             <div class="md:col-span-2 bg-blue-50 rounded-lg p-4 border border-blue-200 shadow-sm">
-              <h4 class="text-sm text-blue-800 font-bold mb-2">แยกตามแผนก (GROUP_NAME)</h4>
+              <h4 class="text-sm text-blue-800 font-bold mb-2">คลิกเลือกแผนกเพื่อกรองข้อมูล (GROUP_NAME)</h4>
               <div class="flex flex-wrap gap-2 text-xs">${getDeptBadges(data.summary)}</div>
             </div>
           </div>
         `;
       } 
       else if (currentTab === 'zeroStock') {
-        // Status Breakdown
         const statusHtml = Object.entries(data.statusBreakdown).map(([st, c]) => 
           `<div class="flex justify-between border-b border-gray-200 py-1"><span>Status ${st}</span> <span class="font-bold">${c}</span></div>`
         ).join('');
-        // Reason Breakdown
         const reasonHtml = Object.entries(data.reasonBreakdown).map(([rs, c]) => 
           `<div class="flex justify-between border-b border-gray-200 py-1"><span>${rs}</span> <span class="font-bold text-red-600">${c}</span></div>`
         ).join('');
@@ -188,7 +207,7 @@
               ${reasonHtml || '-'}
             </div>
             <div class="bg-blue-50 rounded-lg p-3 border border-blue-200 shadow-sm overflow-y-auto max-h-32">
-              <h4 class="text-xs text-blue-800 font-bold mb-2 border-b border-blue-200 pb-1">แยกตามแผนก</h4>
+              <h4 class="text-xs text-blue-800 font-bold mb-2 border-b border-blue-200 pb-1">คลิกเลือกแผนกเพื่อกรอง</h4>
               <div class="flex flex-wrap gap-1 text-[10px]">${getDeptBadges(data.summary)}</div>
             </div>
           </div>
@@ -202,7 +221,7 @@
               <p class="text-3xl font-black text-red-700 mt-2">${data.total} <span class="text-base font-normal">รายการ</span></p>
             </div>
             <div class="md:col-span-2 bg-blue-50 rounded-lg p-4 border border-blue-200 shadow-sm">
-              <h4 class="text-sm text-blue-800 font-bold mb-2">แยกตามแผนก (GROUP_NAME)</h4>
+              <h4 class="text-sm text-blue-800 font-bold mb-2">คลิกเลือกแผนกเพื่อกรองข้อมูล (GROUP_NAME)</h4>
               <div class="flex flex-wrap gap-2 text-xs">${getDeptBadges(data.summary)}</div>
             </div>
           </div>
@@ -212,7 +231,13 @@
     }
 
     function renderTable() {
-      const dataItems = apiResponse.data[currentTab].details;
+      let dataItems = apiResponse.data[currentTab].details;
+      
+      // การกรองข้อมูลด้วยแผนก (Filter)
+      if (currentDept !== 'All') {
+        dataItems = dataItems.filter(item => item.groupName === currentDept);
+      }
+
       const tbody = document.getElementById('tableBody');
       
       if (dataItems.length === 0) {
