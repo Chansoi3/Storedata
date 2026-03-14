@@ -42,10 +42,7 @@
         <h1 id="reportDateDisplay" class="text-xl md:text-2xl font-bold text-gray-800">กำลังโหลดข้อมูลวันที่...</h1>
         <p id="branchInfo" class="text-blue-600 font-medium mt-1 text-lg">กำลังโหลดข้อมูลสาขา...</p>
       </div>
-      <button onclick="toggleAdmin()" class="hidden mt-4 md:mt-0 bg-gray-800 hover:bg-gray-700 text-white text-sm px-4 py-2 rounded transition font-bold shadow-md">
-        ⚙️ จัดการข้อมูล (Admin)
-      </button>
-    </div>
+      </div>
 
     <div id="loading" class="flex justify-center my-12 hidden">
       <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12"></div>
@@ -124,9 +121,10 @@
           apiResponse = result;
           const bInfo = result.branch;
           
-          // นำวันที่มาแสดงผลแทน Header เดิม
           document.getElementById('reportDateDisplay').innerText = result.reportDate || "ข้อมูลวันที่ (ไม่ระบุ)";
-          document.getElementById('branchInfo').innerText = `รหัสสาขา: ${bInfo.code || '-'} | ชื่อสาขา: ${bInfo.name || '-'}`;
+          
+          // ใส่ tag span ที่สามารถคลิกได้เข้าไปที่ รหัสสาขา เพื่อเปิด Admin Mode
+          document.getElementById('branchInfo').innerHTML = `<span class="cursor-pointer hover:underline hover:text-red-600" title="คลิกเพื่อจัดการข้อมูล" onclick="toggleAdmin()">รหัสสาขา: ${bInfo.code || '-'}</span> | ชื่อสาขา: ${bInfo.name || '-'}`;
           
           document.getElementById('mainContent').classList.remove('hidden');
           switchTab('top100'); 
@@ -236,8 +234,9 @@
         `;
       } 
       else if (currentTab === 'zeroStock') {
-        const reasonHtml = Object.entries(data.reasonBreakdown).map(([rs, c]) => 
-          `<div class="flex justify-between border-b border-gray-200 py-1"><span>${rs}</span> <span class="font-bold text-red-600">${c}</span></div>`
+        // เปลี่ยนจาก reasonBreakdown เป็น deliveryBreakdown (DC/FDC)
+        const deliveryHtml = Object.entries(data.deliveryBreakdown).map(([dlv, c]) => 
+          `<div class="flex justify-between border-b border-gray-200 py-1"><span>${dlv}</span> <span class="font-bold text-red-600">${c}</span></div>`
         ).join('');
 
         html = `
@@ -247,8 +246,8 @@
               <p class="text-4xl font-black text-gray-800 mt-2">${data.total}</p>
             </div>
             <div class="bg-red-50 rounded-lg p-4 border border-red-200 shadow-sm text-xs overflow-y-auto max-h-40">
-              <h4 class="font-bold text-red-800 mb-2 border-b border-red-200 pb-1">แยกตามสาเหตุ</h4>
-              ${reasonHtml || '-'}
+              <h4 class="font-bold text-red-800 mb-2 border-b border-red-200 pb-1">แยกตามการจัดส่ง (DC/FDC)</h4>
+              ${deliveryHtml || '-'}
             </div>
             <div class="bg-blue-50 rounded-lg p-4 border border-blue-200 shadow-sm overflow-y-auto max-h-40">
               <h4 class="text-xs text-blue-800 font-bold mb-3 border-b border-blue-200 pb-1">คลิกเลือกแผนกเพื่อกรอง</h4>
