@@ -12,6 +12,7 @@
     @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .hl-stock { background-color: #fee2e2; color: #b91c1c; font-weight: 700; } 
     .hl-ps { background-color: #fef3c7; color: #d97706; font-weight: 700; } 
+    th.cursor-pointer:hover { background-color: #374151; }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans">
@@ -38,10 +39,10 @@
   <div class="max-w-6xl mx-auto p-4 md:p-6">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-lg shadow-sm mb-4 border-l-4 border-blue-500">
       <div>
-        <h1 class="text-2xl font-bold text-gray-800">StoreData Portal</h1>
+        <h1 id="reportDateDisplay" class="text-xl md:text-2xl font-bold text-gray-800">กำลังโหลดข้อมูลวันที่...</h1>
         <p id="branchInfo" class="text-blue-600 font-medium mt-1 text-lg">กำลังโหลดข้อมูลสาขา...</p>
       </div>
-      <button onclick="toggleAdmin()" class="mt-4 md:mt-0 bg-gray-800 hover:bg-gray-700 text-white text-sm px-4 py-2 rounded transition font-bold shadow-md">
+      <button onclick="toggleAdmin()" class="hidden mt-4 md:mt-0 bg-gray-800 hover:bg-gray-700 text-white text-sm px-4 py-2 rounded transition font-bold shadow-md">
         ⚙️ จัดการข้อมูล (Admin)
       </button>
     </div>
@@ -69,15 +70,29 @@
 
         <div class="overflow-x-auto border rounded-lg shadow-sm">
           <table class="min-w-full text-left bg-white whitespace-nowrap">
-            <thead class="bg-gray-800 text-white">
+            <thead class="bg-gray-800 text-white select-none">
               <tr>
-                <th class="p-3 text-sm font-semibold">บาร์โค้ด</th>
-                <th class="p-3 text-sm font-semibold w-1/3">ชื่อสินค้า</th>
-                <th class="p-3 text-sm font-semibold">แผนก (GROUP)</th>
-                <th class="p-3 text-sm font-semibold text-center">Status</th>
-                <th class="p-3 text-sm font-semibold">สาเหตุ</th>
-                <th class="p-3 text-sm font-semibold text-center border-l border-gray-600">ค่า PS</th>
-                <th class="p-3 text-sm font-semibold text-center border-l border-gray-600">สต็อค</th>
+                <th class="p-3 text-sm font-semibold cursor-pointer transition" onclick="sortData('barcode')">
+                  บาร์โค้ด <span id="sortIcon-barcode" class="text-gray-400 text-xs">↕️</span>
+                </th>
+                <th class="p-3 text-sm font-semibold w-1/3 cursor-pointer transition" onclick="sortData('name')">
+                  ชื่อสินค้า <span id="sortIcon-name" class="text-gray-400 text-xs">↕️</span>
+                </th>
+                <th class="p-3 text-sm font-semibold cursor-pointer transition" onclick="sortData('groupName')">
+                  แผนก (GROUP) <span id="sortIcon-groupName" class="text-gray-400 text-xs">↕️</span>
+                </th>
+                <th class="p-3 text-sm font-semibold text-center cursor-pointer transition" onclick="sortData('status')">
+                  Status <span id="sortIcon-status" class="text-gray-400 text-xs">↕️</span>
+                </th>
+                <th class="p-3 text-sm font-semibold text-center border-l border-gray-600 cursor-pointer transition" onclick="sortData('psValue')">
+                  ค่า PS <span id="sortIcon-psValue" class="text-gray-400 text-xs">↕️</span>
+                </th>
+                <th class="p-3 text-sm font-semibold text-center border-l border-gray-600 cursor-pointer transition" onclick="sortData('stock')">
+                  สต็อค <span id="sortIcon-stock" class="text-gray-400 text-xs">↕️</span>
+                </th>
+                <th class="p-3 text-sm font-semibold border-l border-gray-600 cursor-pointer transition" onclick="sortData('reason')">
+                  สาเหตุ <span id="sortIcon-reason" class="text-gray-400 text-xs">↕️</span>
+                </th>
               </tr>
             </thead>
             <tbody id="tableBody" class="divide-y text-sm text-gray-700"></tbody>
@@ -92,6 +107,7 @@
     let apiResponse = null;
     let currentTab = 'top100';
     let currentDept = 'All'; 
+    let sortConfig = { key: null, direction: 'asc' };
 
     window.onload = () => fetchStoreData();
 
@@ -107,6 +123,9 @@
         if (result.status === 'success') {
           apiResponse = result;
           const bInfo = result.branch;
+          
+          // นำวันที่มาแสดงผลแทน Header เดิม
+          document.getElementById('reportDateDisplay').innerText = result.reportDate || "ข้อมูลวันที่ (ไม่ระบุ)";
           document.getElementById('branchInfo').innerText = `รหัสสาขา: ${bInfo.code || '-'} | ชื่อสาขา: ${bInfo.name || '-'}`;
           
           document.getElementById('mainContent').classList.remove('hidden');
@@ -117,6 +136,7 @@
       } catch (error) {
         alert('ไม่สามารถเชื่อมต่อ API ได้ (กรุณาเช็ค URL หรืออัปเดต Deployment)');
         document.getElementById('branchInfo').innerText = "เชื่อมต่อล้มเหลว";
+        document.getElementById('reportDateDisplay').innerText = "เกิดข้อผิดพลาด";
       } finally {
         document.getElementById('loading').classList.add('hidden');
       }
@@ -126,6 +146,7 @@
       if (!apiResponse) return;
       currentTab = tabName;
       currentDept = 'All'; 
+      sortConfig = { key: null, direction: 'asc' }; 
 
       ['top100', 'zeroStock', 'negativeStock'].forEach(t => {
         const el = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
@@ -137,6 +158,7 @@
       });
 
       renderDashboard();
+      updateSortIcons();
       renderTable();
     }
 
@@ -144,6 +166,33 @@
       currentDept = deptName;
       renderDashboard(); 
       renderTable();     
+    }
+
+    function sortData(key) {
+      if (sortConfig.key === key) {
+        sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortConfig.key = key;
+        sortConfig.direction = 'asc';
+      }
+      updateSortIcons();
+      renderTable();
+    }
+
+    function updateSortIcons() {
+      const columns = ['barcode', 'name', 'groupName', 'status', 'psValue', 'stock', 'reason'];
+      columns.forEach(col => {
+        const icon = document.getElementById(`sortIcon-${col}`);
+        if (icon) {
+          if (sortConfig.key === col) {
+            icon.innerText = sortConfig.direction === 'asc' ? ' 🔼' : ' 🔽';
+            icon.className = 'text-green-400 text-xs ml-1';
+          } else {
+            icon.innerText = ' ↕️';
+            icon.className = 'text-gray-400 text-xs ml-1';
+          }
+        }
+      });
     }
 
     function renderDashboard() {
@@ -171,44 +220,37 @@
       if (currentTab === 'top100') {
         html = `
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="bg-indigo-50 rounded-lg p-4 border border-indigo-200 shadow-sm text-center">
+            <div class="bg-indigo-50 rounded-lg p-4 border border-indigo-200 shadow-sm text-center flex flex-col justify-center">
               <h4 class="text-sm text-indigo-700 font-bold">รายการ TOP100 ทั้งหมด</h4>
               <p class="text-3xl font-black text-indigo-800 mt-2">${data.total}</p>
             </div>
-            <div class="bg-red-50 rounded-lg p-4 border border-red-200 shadow-sm text-center">
+            <div class="bg-red-50 rounded-lg p-4 border border-red-200 shadow-sm text-center flex flex-col justify-center">
               <h4 class="text-sm text-red-700 font-bold">สินค้า OOS (สต็อค 0)</h4>
               <p class="text-3xl font-black text-red-600 mt-2">${data.oosCount}</p>
             </div>
             <div class="md:col-span-2 bg-blue-50 rounded-lg p-4 border border-blue-200 shadow-sm">
               <h4 class="text-sm text-blue-800 font-bold mb-3">คลิกเลือกแผนกเพื่อกรองข้อมูล (GROUP_NAME)</h4>
-              <div class="flex flex-wrap gap-2 text-xs">${getDeptBadges(data.summary)}</div>
+              <div class="flex flex-wrap gap-2 text-xs overflow-y-auto max-h-40">${getDeptBadges(data.summary)}</div>
             </div>
           </div>
         `;
       } 
       else if (currentTab === 'zeroStock') {
-        const statusHtml = Object.entries(data.statusBreakdown).map(([st, c]) => 
-          `<div class="flex justify-between border-b border-gray-200 py-1"><span>Status ${st}</span> <span class="font-bold">${c}</span></div>`
-        ).join('');
         const reasonHtml = Object.entries(data.reasonBreakdown).map(([rs, c]) => 
           `<div class="flex justify-between border-b border-gray-200 py-1"><span>${rs}</span> <span class="font-bold text-red-600">${c}</span></div>`
         ).join('');
 
         html = `
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="bg-gray-50 rounded-lg p-4 border shadow-sm text-center flex flex-col justify-center">
               <h4 class="text-sm text-gray-700 font-bold">สต็อค 0 ทั้งหมด</h4>
               <p class="text-4xl font-black text-gray-800 mt-2">${data.total}</p>
             </div>
-            <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200 shadow-sm text-xs">
-              <h4 class="font-bold text-yellow-800 mb-2 border-b border-yellow-200 pb-1">แยกตาม Status</h4>
-              ${statusHtml || '-'}
-            </div>
-            <div class="bg-red-50 rounded-lg p-3 border border-red-200 shadow-sm text-xs overflow-y-auto max-h-32">
+            <div class="bg-red-50 rounded-lg p-4 border border-red-200 shadow-sm text-xs overflow-y-auto max-h-40">
               <h4 class="font-bold text-red-800 mb-2 border-b border-red-200 pb-1">แยกตามสาเหตุ</h4>
               ${reasonHtml || '-'}
             </div>
-            <div class="bg-blue-50 rounded-lg p-3 border border-blue-200 shadow-sm overflow-y-auto max-h-32">
+            <div class="bg-blue-50 rounded-lg p-4 border border-blue-200 shadow-sm overflow-y-auto max-h-40">
               <h4 class="text-xs text-blue-800 font-bold mb-3 border-b border-blue-200 pb-1">คลิกเลือกแผนกเพื่อกรอง</h4>
               <div class="flex flex-wrap gap-1 text-[10px]">${getDeptBadges(data.summary)}</div>
             </div>
@@ -218,13 +260,13 @@
       else if (currentTab === 'negativeStock') {
         html = `
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="bg-red-100 rounded-lg p-4 border border-red-300 shadow-sm text-center">
+            <div class="bg-red-100 rounded-lg p-4 border border-red-300 shadow-sm text-center flex flex-col justify-center">
               <h4 class="text-sm text-red-800 font-bold">สินค้าสต็อคติดลบทั้งหมด</h4>
               <p class="text-3xl font-black text-red-700 mt-2">${data.total} <span class="text-base font-normal">รายการ</span></p>
             </div>
             <div class="md:col-span-2 bg-blue-50 rounded-lg p-4 border border-blue-200 shadow-sm">
               <h4 class="text-sm text-blue-800 font-bold mb-3">คลิกเลือกแผนกเพื่อกรองข้อมูล (GROUP_NAME)</h4>
-              <div class="flex flex-wrap gap-2 text-xs">${getDeptBadges(data.summary)}</div>
+              <div class="flex flex-wrap gap-2 text-xs overflow-y-auto max-h-40">${getDeptBadges(data.summary)}</div>
             </div>
           </div>
         `;
@@ -233,10 +275,29 @@
     }
 
     function renderTable() {
-      let dataItems = apiResponse.data[currentTab].details;
+      let dataItems = [...apiResponse.data[currentTab].details];
       
       if (currentDept !== 'All') {
         dataItems = dataItems.filter(item => item.groupName === currentDept);
+      }
+
+      if (sortConfig.key) {
+        dataItems.sort((a, b) => {
+          let valA = a[sortConfig.key];
+          let valB = b[sortConfig.key];
+          
+          if (sortConfig.key === 'stock' || sortConfig.key === 'psValue') {
+            valA = parseFloat(valA) || 0;
+            valB = parseFloat(valB) || 0;
+          } else {
+            valA = (valA || '').toString().toLowerCase();
+            valB = (valB || '').toString().toLowerCase();
+          }
+
+          if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+          if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+          return 0;
+        });
       }
 
       const tbody = document.getElementById('tableBody');
@@ -252,24 +313,21 @@
           <td class="p-3 font-medium text-gray-900 truncate max-w-xs" title="${item.name}">${item.name}</td>
           <td class="p-3 text-gray-600">${item.groupName}</td>
           <td class="p-3 text-center font-bold text-gray-700">${item.status}</td>
-          <td class="p-3 text-xs text-red-600 max-w-xs truncate" title="${item.reason}">${item.reason}</td>
           <td class="p-3 text-center border-l hl-ps">${item.psValue}</td>
           <td class="p-3 text-center border-l hl-stock">${item.stock}</td>
+          <td class="p-3 text-xs text-red-600 max-w-xs truncate border-l" title="${item.reason}">${item.reason}</td>
         </tr>
       `).join('');
     }
 
-    // ฟังก์ชันจัดการ Sidebar
     function toggleAdmin() {
       const sidebar = document.getElementById('adminSidebar');
       const overlay = document.getElementById('sidebarOverlay');
       
       if (sidebar.classList.contains('translate-x-full')) {
-        // เปิด Sidebar
         sidebar.classList.remove('translate-x-full');
         overlay.classList.remove('hidden');
       } else {
-        // ปิด Sidebar
         sidebar.classList.add('translate-x-full');
         overlay.classList.add('hidden');
       }
@@ -321,7 +379,7 @@
           setTimeout(() => {
             statusText.innerHTML = '';
             document.getElementById('excelFileInput').value = '';
-            toggleAdmin(); // ปิด Sidebar อัตโนมัติเมื่อเสร็จ
+            toggleAdmin(); 
             fetchStoreData();
           }, 1500);
         } else {
